@@ -123,7 +123,7 @@ function ENT:BehaviourThink()
 	local near = self:GetPos():DistToSqr(pos) < dist
 
 	if !near then
-		if !self:PathIsValid() or self:GetPathPos():Distance(pos) > dist then
+		if !self:PathIsValid() or self:GetPathPos():DistToSqr(pos) > dist then
 			self:SetupPath(pos)
 		end
 
