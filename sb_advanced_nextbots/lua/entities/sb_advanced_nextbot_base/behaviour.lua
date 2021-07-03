@@ -117,15 +117,16 @@ end
 function ENT:BehaviourThink()
 	if !game.SinglePlayer() and (!IsValid(Entity(1)) or !Entity(1):IsListenServerHost()) then return end
 
+	local dist = 100 * 100
 	local ent = Entity(1)
 	local pos = ent:GetPos()
-	local near = self:GetPos():Distance(pos)<100
-	
+	local near = self:GetPos():DistToSqr(pos) < dist
+
 	if !near then
-		if !self:PathIsValid() or self:GetPathPos():Distance(pos)>100 then
+		if !self:PathIsValid() or self:GetPathPos():Distance(pos) > dist then
 			self:SetupPath(pos)
 		end
-		
+
 		if self:PathIsValid() then
 			self:GetPath():Draw()
 			self:ControlPath(true)
@@ -148,23 +149,23 @@ function ENT:BehaviourPlayerControlThink(ply)
 	local forward,right = eyeang:Forward(),eyeang:Right()
 	local f = self:ControlPlayerKeyDown(IN_FORWARD) and 1 or self:ControlPlayerKeyDown(IN_BACK) and -1 or 0
 	local r = self:ControlPlayerKeyDown(IN_MOVELEFT) and 1 or self:ControlPlayerKeyDown(IN_MOVERIGHT) and -1 or 0
-	
+
 	if f!=0 or r!=0 then
 		local eyeang = ply:EyeAngles()
 		eyeang.p = 0
 		eyeang.r = 0
 		local movedir = eyeang:Forward()*f-eyeang:Right()*r
-		
+
 		self:Approach(self:GetPos()+movedir*100)
 	end
-	
+
 	if self:ControlPlayerKeyPressed(IN_JUMP) then
 		self:Jump()
 	end
-	
+
 	if self:HasWeapon() then
 		local wep = self:GetActiveLuaWeapon()
-	
+
 		if self[wep.Primary.Automatic and "ControlPlayerKeyDown" or "ControlPlayerKeyPressed"](self,IN_ATTACK) then
 			if wep:Clip1()<=0 and wep:GetMaxClip1()>0 then
 				self:WeaponReload()
@@ -172,20 +173,20 @@ function ENT:BehaviourPlayerControlThink(ply)
 				self:WeaponPrimaryAttack()
 			end
 		end
-		
+
 		if self[wep.Secondary.Automatic and "ControlPlayerKeyDown" or "ControlPlayerKeyPressed"](self,IN_ATTACK2) then
 			self:WeaponSecondaryAttack()
 		end
-		
+
 		if self:ControlPlayerKeyPressed(IN_RELOAD) then
 			self:WeaponReload()
 		end
 	end
-	
+
 	if self:ControlPlayerKeyPressed(IN_USE) then
 		local pos = self:GetShootPos()
 		local tr = util.TraceLine({start = pos,endpos = pos+forward*72,filter = self})
-		
+
 		if tr.Hit then
 			if self:CanPickupWeapon(tr.Entity) and !self:HasWeapon() then
 				self:SetupWeapon(tr.Entity)

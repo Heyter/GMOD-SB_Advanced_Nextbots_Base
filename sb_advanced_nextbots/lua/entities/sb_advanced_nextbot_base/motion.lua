@@ -707,9 +707,9 @@ function ENT:ControlPath(lookatgoal)
 	local pos = self:GetPathPos()
 	local options = self.m_PathOptions
 
-	local range = self:GetRangeTo(pos)
+	local range = self:GetRangeSquaredTo(pos)
 	
-	if range<options.tolerance or range<self.PathGoalToleranceFinal then
+	if range<options.tolerance*options.tolerance or range<self.PathGoalToleranceFinal then
 		path:Invalidate()
 		return true
 	end
@@ -877,7 +877,7 @@ function ENT:MoveAlongPath(lookatgoal)
 	local dontupdate = false
 	
 	local jumptype = segment.type==2
-	if jumptype and self:GetRangeTo(segment.pos)<path:GetGoalTolerance() then
+	if jumptype and self:GetRangeSquaredTo(segment.pos)<path:GetGoalTolerance()^2 then
 		-- Using previous segment data, because segment with type 2 can't be used properly
 	
 		local prev
@@ -959,9 +959,9 @@ function ENT:MoveAlongPath(lookatgoal)
 		path:Draw()
 	end
 	
-	local range = self:GetRangeTo(self:GetPathPos())
+	local range = self:GetRangeSquaredTo(self:GetPathPos())
 	
-	if !path:IsValid() and range<=self.m_PathOptions.tolerance or range<self.PathGoalToleranceFinal then
+	if !path:IsValid() and range<=self.m_PathOptions.tolerance^2 or range<self.PathGoalToleranceFinal then
 		path:Invalidate()
 		return true
 	end

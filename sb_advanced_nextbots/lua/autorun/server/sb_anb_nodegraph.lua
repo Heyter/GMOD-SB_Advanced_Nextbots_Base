@@ -285,26 +285,24 @@ end
 local function PathCostGenerator(path,from,area,cap)
 	if path.m_customcostgen then
 		local success,cost = pcall(path.m_customcostgen,from,area,cap)
-		
+
 		if !success then
 			DevMsg("Path generation failed! "..cost.."\n")
-			
+
 			return -1
 		end
-		
+
 		return tonumber(cost) or -1
 	end
-	
+
 	if !from then return 0 end
-	
 	if bit.band(cap,CAP_MOVE_CLIMB)!=0 then return -1 end
-	
+
 	local frompos = from:GetOrigin()
 	local areapos = area:GetOrigin()
-	
-	local cost = frompos:Distance(areapos)
+
 	local z = areapos.z-frompos.z
-	
+
 	if z<0 and bit.band(cap,bit.bor(CAP_MOVE_GROUND,CAP_MOVE_JUMP))!=0 then
 		local maxh = path.m_Bot.loco:GetDeathDropHeight()
 		local h = -z
@@ -316,17 +314,19 @@ local function PathCostGenerator(path,from,area,cap)
 			if ang>60 then return -1 end
 		end
 	end
-	
+
+	local cost = frompos:Distance(areapos)
+
 	if bit.band(cap,CAP_MOVE_JUMP)!=0 then
 		local maxh = path.m_Bot.loco:GetJumpHeight()
 		if z>maxh then return -1 end
-		
-		return cost*5
+
+		return cost * 5
 	elseif bit.band(cap,bit.bor(CAP_MOVE_GROUND,CAP_MOVE_FLY))!=0 then
 		return cost
 	end
-	
-	return cost*10
+
+	return cost * 10
 end
 
 local function TranslateCapToPathSegmentType(cap)

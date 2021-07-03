@@ -40,17 +40,22 @@ ENT.Models = {
 
 function ENT:Initialize()
 	BaseClass.Initialize(self)
-	
+
 	self:SetModel(table.Random(self.Models))
 	self:SetFriendly(true)
-	
+
 	self:SetClassRelationship("sb_advanced_nextbot_soldier_friendly",D_LI)
 	self:SetClassRelationship("sb_advanced_nextbot_soldier_hostile",D_HT)
-	self:SetClassRelationship("player",
-		self.PlayerDisposition==0 and D_NU or
-		self.PlayerDisposition==1 and D_LI or
-		self.PlayerDisposition==2 and D_HT or
-		self.PlayerDisposition==3 and D_LI or
-		D_HT
-	)
+
+	if (self.PlayerDisposition == -1) then
+		self:SetClassRelationship("player", D_LI)
+	else
+		self:SetClassRelationship("player",
+			self.PlayerDisposition==0 and D_NU or
+			self.PlayerDisposition==1 and D_LI or
+			self.PlayerDisposition==2 and D_HT or
+			self.PlayerDisposition==3 and D_LI or
+			D_HT
+		)
+	end
 end

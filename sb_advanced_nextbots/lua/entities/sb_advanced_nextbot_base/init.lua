@@ -73,10 +73,10 @@ ENT.LineOfSightMask = MASK_BLOCKLOS
 ENT.ForgetEnemyTime = 30
 
 -- Distance at which enemy should be to make bot think enemy is very close
-ENT.CloseEnemyDistance = 500
+ENT.CloseEnemyDistance = math.pow(500, 2)
 
 -- Max distance at which bot can see enemies
-ENT.MaxSeeEnemyDistance = 3000
+ENT.MaxSeeEnemyDistance = math.pow(3000, 2)
 
 -- Default motion path minimum look ahead distance
 ENT.PathMinLookAheadDistance = 15
@@ -85,7 +85,7 @@ ENT.PathMinLookAheadDistance = 15
 ENT.PathGoalTolerance = 25
 
 -- Default motion path goal tolerance on last segment
-ENT.PathGoalToleranceFinal = 25
+ENT.PathGoalToleranceFinal = math.pow(25, 2)
 
 -- Default motion path recompute time
 ENT.PathRecompute = 5

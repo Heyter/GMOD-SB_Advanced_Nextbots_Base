@@ -19,10 +19,10 @@ if CLIENT then return end
 
 local PlayerDisposition = CreateConVar(
 	"sb_advanced_nextbot_soldier_playerdisposition",
-	"0",
+	"-1",
 	bit.bor(FCVAR_NEVER_AS_STRING,FCVAR_ARCHIVE),
 	"Defines player disposition for friendly/hostile bots: 0 - Neutral; 1 - Like; 2 - Hate; 3 - Like for friendly, hate for hostile; 4 - Hate for friendly, like for hostile.",
-	0,
+	-1,
 	4
 )
 
@@ -40,7 +40,13 @@ local UseNodeGraph = CreateConVar(
 --]]------------------------------------
 
 ENT.SpawnHealth = 70
-ENT.PathGoalToleranceFinal = 50
+ENT.PathGoalToleranceFinal = math.pow(50, 2)
+ENT.WeaponPickupDistance = math.pow(50, 2)
+
+-- Maximum pursuit distance before the NPC loses sight of the target.
+ENT.MaxPursuitDistance = math.pow(2000, 2)
+-- Close pursuit distance. The distance required to start pursuit the target.
+ENT.ClosePursuitDistance = math.pow(300, 2)
 
 local ENEMY_CLASSES
 
@@ -48,46 +54,46 @@ ENT.TaskList = {
 	["shooting_handler"] = {
 		OnStart = function(self,data)
 			data.PassBlockerTime = CurTime()
-		
+
 			data.PassBlocker = function(blocker)
 				local dir = blocker:WorldSpaceCenter()-self:GetPos()
 				dir.z = 0
-				
+
 				local _,diff = WorldToLocal(vector_origin,dir:Angle(),vector_origin,self:GetDesiredEyeAngles())
 				local side = diff.y>0 and 1 or -1
 				local b1,b2 = self:GetCollisionBounds()
-				
+
 				self:Approach(self:GetPos()+dir:Angle():Right()*side*10)
 			end
 		end,
 		BehaveUpdate = function(self,data,interval)
 			if !self:HasWeapon() then return end
-			
+
 			local wep = self:GetActiveWeapon()
 			local enemy = self:GetEnemy()
-		
+
 			if self.IsSeeEnemy and IsValid(enemy) then
 				local pos = self:GetShootPos()
 				local endpos = self.LastEnemyShootPos
 				local dir = endpos-pos
 				dir:Normalize()
-			
+
 				self:SetDesiredEyeAngles(dir:Angle())
-				
+
 				if wep:Clip1()<=0 then
 					self:WeaponReload()
 				end
-				
+
 				if self:RunTask("PreventShooting") then return end
-				
+
 				local dot = math.Clamp(self:GetEyeAngles():Forward():Dot(dir),0,1)
 				local ang = math.deg(math.acos(dot))
-				
+
 				if ang<=25 then
 					local filter = self:GetChildren()
 					filter[#filter+1] = self
 					filter[#filter+1] = enemy
-				
+
 					if self.LastShootBlocker then
 						if self:IsTaskActive("movement_wait") and CurTime()-data.PassBlockerTime>0.5 then
 							data.PassBlocker(self.LastShootBlocker)
@@ -112,32 +118,32 @@ ENT.TaskList = {
 			data.HasEnemy = false
 			self.IsSeeEnemy = false
 			self:SetEnemy(NULL)
-			
+
 			self.UpdateEnemyHandler = function(forceupdateenemies)
 				local prevenemy = self:GetEnemy()
 				local newenemy = prevenemy
 
 				if forceupdateenemies or !data.UpdateEnemies or CurTime()>data.UpdateEnemies or data.HasEnemy and !IsValid(prevenemy) then
 					data.UpdateEnemies = CurTime()+0.5
-					
+
 					self:FindEnemies()
-					
+
 					local enemy = self:FindPriorityEnemy()
 					if IsValid(enemy) then
 						newenemy = enemy
 						self.IsSeeEnemy = self:CanSeePosition(enemy)
 					end
 				end
-				
+
 				if IsValid(newenemy) then
 					if !data.HasEnemy then
 						self:RunTask("EnemyFound",newenemy)
 					elseif prevenemy!=newenemy then
 						self:RunTask("EnemyChanged",newenemy,prevenemy)
 					end
-					
+
 					data.HasEnemy = true
-					
+
 					if self:CanSeePosition(newenemy) then
 						self.LastEnemyShootPos = self:EntShootPos(newenemy)
 						self:UpdateEnemyMemory(newenemy,newenemy:GetPos())
@@ -146,11 +152,11 @@ ENT.TaskList = {
 					if data.HasEnemy then
 						self:RunTask("EnemyLost",prevenemy)
 					end
-					
+
 					data.HasEnemy = false
 					self.IsSeeEnemy = false
 				end
-				
+
 				self:SetEnemy(newenemy)
 			end
 		end,
@@ -164,10 +170,10 @@ ENT.TaskList = {
 	["movement_handler"] = {
 		OnStart = function(self,data)
 			self:TaskComplete("movement_handler")
-			
+
 			local task,data = "movement_wait"
 			local findwep = !self:HasWeapon() and self:FindWeapon()
-			
+
 			if self.CustomPosition then
 				task,data = "movement_custompos",{Position = self.CustomPosition}
 				self.CustomPosition = nil
@@ -175,12 +181,12 @@ ENT.TaskList = {
 				task,data = "movement_getweapon",{Wep = findwep}
 			else
 				if IsValid(self.Target) then
-					if self:GetRangeTo(self.Target)>300 or !self:CanSeePosition(self.Target) then
+					if self:GetRangeSquaredTo(self.Target) > self.ClosePursuitDistance or !self:CanSeePosition(self.Target) then
 						task = "movement_followtarget"
 					end
 				else
 					if IsValid(self:GetEnemy()) then
-						if self:GetRangeTo(self:GetEnemy())>300 then
+						if self:GetRangeSquaredTo(self:GetEnemy()) > self.ClosePursuitDistance then
 							task = "movement_followenemy"
 						end
 					else
@@ -188,7 +194,7 @@ ENT.TaskList = {
 					end
 				end
 			end
-			
+
 			self:StartTask(task,data)
 		end,
 	},
@@ -216,7 +222,7 @@ ENT.TaskList = {
 	["movement_getweapon"] = {
 		OnStart = function(self,data)
 			self:SetupPath(data.Wep:GetPos())
-			
+
 			if !self:PathIsValid() then
 				self:TaskFail("movement_getweapon")
 				self:StartTask("movement_wait")
@@ -226,17 +232,17 @@ ENT.TaskList = {
 			if !self:CanPickupWeapon(data.Wep) then
 				self:TaskFail("movement_getweapon")
 				self:StartTask("movement_wait")
-				
+
 				return
 			end
-		
+
 			local result = self:ControlPath(true)
-			
+
 			if result then
 				self:TaskComplete("movement_getweapon")
 				self:StartTask("movement_wait")
-				
-				if self:GetRangeTo(data.Wep)<50 then
+
+				if self:GetRangeSquaredTo(data.Wep) < self.WeaponPickupDistance then
 					self:SetupWeapon(data.Wep)
 				end
 			elseif result==false then
@@ -253,24 +259,24 @@ ENT.TaskList = {
 			if !IsValid(self.Target) then
 				self:TaskFail("movement_followtarget")
 				self:StartTask("movement_wait")
-				
+
 				return
 			end
-			
-			if !data.Pos or self.Target:GetPos():Distance(data.Pos)>50 then
+
+			if !data.Pos or self.Target:GetPos():DistToSqr(data.Pos)>50*50 then
 				data.Pos = self.Target:GetPos()
 				self:SetupPath(data.Pos)
-				
+
 				if !self:PathIsValid() then
 					self:TaskComplete("movement_followtarget")
 					self:StartTask("movement_wait")
-				
+
 					return
 				end
 			end
-		
+
 			local result = self:ControlPath(!self.IsSeeEnemy)
-			
+
 			if result then
 				self:TaskComplete("movement_followtarget")
 				self:StartTask("movement_wait")
@@ -286,10 +292,10 @@ ENT.TaskList = {
 	["movement_followenemy"] = {
 		OnStart = function(self,data)
 			local pos = self:GetLastEnemyPosition(self:GetEnemy())
-		
+
 			self:SetupPath(pos)
-			data.Walk = !self:CanSeePosition(pos) and self:GetRangeTo(pos)<2000
-			
+			data.Walk = !self:CanSeePosition(pos) and self:GetRangeSquaredTo(pos) < self.MaxPursuitDistance
+
 			if !self:PathIsValid() then
 				self:TaskFail("movement_followenemy")
 				self:StartTask("movement_wait")
@@ -297,7 +303,7 @@ ENT.TaskList = {
 		end,
 		BehaveUpdate = function(self,data)
 			local result = self:ControlPath(!self.IsSeeEnemy)
-			
+
 			if result then
 				self:TaskComplete("movement_followenemy")
 				self:StartTask("movement_wait")
@@ -322,13 +328,13 @@ ENT.TaskList = {
 	["movement_randomwalk"] = {
 		OnStart = function(self,data)
 			local pos = self:GetRandomWalkPosition()
-			
+
 			if pos then
 				self:SetupPath(pos)
 			else
 				self:GetPath():Invalidate()
 			end
-			
+
 			if !self:PathIsValid() then
 				self:TaskFail("movement_randomwalk")
 				self:StartTask("movement_wait")
@@ -336,7 +342,7 @@ ENT.TaskList = {
 		end,
 		BehaveUpdate = function(self,data)
 			local result = self:ControlPath(!self.IsSeeEnemy)
-			
+
 			if result then
 				self:TaskComplete("movement_randomwalk")
 				self:StartTask("movement_wait",{Time = math.random(3,6)})
@@ -355,7 +361,7 @@ ENT.TaskList = {
 	["movement_custompos"] = {
 		OnStart = function(self,data)
 			self:SetupPath(data.Position,{tolerance = 50})
-			
+
 			if !self:PathIsValid() then
 				self:TaskFail("movement_custompos")
 				self:StartTask("movement_wait")
@@ -363,7 +369,7 @@ ENT.TaskList = {
 		end,
 		BehaveUpdate = function(self,data)
 			local result = self:ControlPath(!self.IsSeeEnemy)
-			
+
 			if result then
 				self:TaskComplete("movement_custompos")
 				self:StartTask("movement_wait")
@@ -380,35 +386,35 @@ ENT.TaskList = {
 		OnStart = function(self,data)
 			data.Inform = function(enemy,pos)
 				for k,v in ipairs(ents.FindByClass(self:GetClass())) do
-					if v==self or v.m_InformGroup!=self.m_InformGroup or self:GetRangeTo(v)>self.InformRadius then continue end
-					
+					if v==self or v.m_InformGroup!=self.m_InformGroup or self:GetRangeSquaredTo(v)>self.InformRadius then continue end
+
 					v:RunTask("InformReceive",enemy,pos)
 				end
 			end
 		end,
 		BehaveUpdate = function(self,data,interval)
 			if IsValid(self.Target) then return end
-		
+
 			if self.IsSeeEnemy and (!data.EnemyPosInform or CurTime()>=data.EnemyPosInform) then
 				data.EnemyPosInform = CurTime()+5
-				
+
 				data.Inform(self:GetEnemy(),self:EntShootPos(self:GetEnemy()))
 			end
 		end,
 		InformReceive = function(self,data,enemy,pos)
 			self:SetEntityRelationship(enemy,D_HT,1)
 			self:UpdateEnemyMemory(enemy,pos)
-			
+
 			if self:IsTaskActive("movement_randomwalk") then
 				self:TaskFail("movement_randomwalk")
-				
+
 				self.CustomPosition = pos
 				self:StartTask("movement_wait")
 			end
 		end,
 		OnKilled = function(self,data,dmg)
 			local att = dmg:GetAttacker()
-		
+
 			if IsValid(att) and self:GetRelationship(att)==D_NU and (ENEMY_CLASSES[att:GetClass()] or att:IsPlayer()) then
 				data.Inform(att,self:EntShootPos(att))
 			end
@@ -416,7 +422,7 @@ ENT.TaskList = {
 	},
 }
 
-ENT.InformRadius = 5000
+ENT.InformRadius = math.pow(5000, 2)
 ENT.InformGroup = "Soldiers"
 
 --[[------------------------------------
@@ -507,10 +513,10 @@ function ENT:SetupEntityRelationship(ent)
 	
 	if stdd then
 		local d = self:GetDesiredEnemyRelationship(ent,stdd)
-		self:SetEntityRelationship(ent,d,1)
+		self:SetEntityRelationship(ent,d)
 	
 		if ent:IsNPC() then
-			ent:AddEntityRelationship(self,d,1)
+			ent:AddEntityRelationship(self,d)
 		end
 	end
 end
@@ -562,20 +568,23 @@ end
 	end
 end*/
 
+-- Search distance of the object (player, weapon)
+ENT.SearchRangeObject = math.pow(3000, 2)
+
+-- Distance to detect an object
+ENT.SearchDistLimit = math.pow(500, 2)
+
 function ENT:FindWeapon()
-	local distlimit = 500
-	local searchrange = 3000
-	
 	local wep,range,weight
 
-	for k,v in ipairs(ents.GetAll()) do
-		local r = self:GetRangeTo(v)
-	
-		if r>searchrange or !self:CanPickupWeapon(v) or !self:CanSeePosition(v) then continue end
-		
+	for _, v in ipairs(ents.GetAll()) do
+		local r = self:GetRangeSquaredTo(v)
+
+		if r > self.SearchRangeObject or !self:CanPickupWeapon(v) or !self:CanSeePosition(v) then continue end
+
 		local w = v:GetWeight()
-		
-		if !wep or w>weight and r-range<distlimit or w<weight and r-range>distlimit or w==weight and r<range then
+
+		if !wep or w>weight and r-range<self.SearchDistLimit or w<weight and r-range>self.SearchDistLimit or w==weight and r<range then
 			wep,range,weight = v,r,w
 		end
 	end
@@ -623,9 +632,9 @@ function ENT:OnInjured(dmg)
 	BaseClass.OnInjured(self,dmg)
 
 	local att = dmg:GetAttacker()
-	
+
 	if IsValid(att) and self:GetRelationship(att)==D_NU and (ENEMY_CLASSES[att:GetClass()] or att:IsPlayer()) then
-		self:SetEntityRelationship(att,D_HT,0)
+		self:SetEntityRelationship(att,D_HT)
 	end
 end
 
@@ -642,8 +651,9 @@ function ENT:ShootBlocker(start,pos,filter)
 	return tr.Hit and tr.Entity
 end
 
+local destlen = 500^2
+
 function ENT:GetRandomWalkPosition()
-	local destlen = 500^2
 	local pos = self:GetPos()
 
 	if self:UsingNodeGraph() then
@@ -707,7 +717,7 @@ end
 
 function ENT:SetupTaskList(list)
 	BaseClass.SetupTaskList(self,list)
-	
+
 	for k,v in pairs(self.TaskList) do
 		list[k] = v
 	end
@@ -715,7 +725,7 @@ end
 
 function ENT:SetupTasks()
 	BaseClass.SetupTasks(self)
-	
+
 	self:StartTask("enemy_handler")
 	self:StartTask("shooting_handler")
 	self:StartTask("movement_handler")
