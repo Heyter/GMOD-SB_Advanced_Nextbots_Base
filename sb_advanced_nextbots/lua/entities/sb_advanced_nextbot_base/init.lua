@@ -174,7 +174,7 @@ end
 function ENT:OnKilled(dmg)
 	if self:HasWeapon() then
 		local wep = self:GetActiveLuaWeapon()
-		
+
 		if !dmg:IsDamageType(DMG_DISSOLVE) then
 			if self:CanDropWeaponOnDie(wep) and wep:ShouldDropOnDie() then
 				self:DropWeapon(nil,true)
@@ -192,7 +192,7 @@ function ENT:OnKilled(dmg)
 		
 		self:BecomeRagdoll(dmg)
 	end
-	
+
 	self:RunTask("OnKilled",dmg)
 	hook.Run("OnNPCKilled",self,dmg:GetAttacker(),dmg:GetInflictor())
 end
@@ -248,7 +248,7 @@ function ENT:DissolveEntity(ent)
 	dissolver:SetSaveValue("m_flStartTime",0)
 	dissolver:Spawn()
 	dissolver:AddEFlags(EFL_FORCE_CHECK_TRANSMIT)
-	
+
 	ent:SetSaveValue("m_flDissolveStartTime",0)
 	ent:SetSaveValue("m_hEffectEntity",dissolver)
 	ent:AddFlags(FL_DISSOLVING)
@@ -297,10 +297,10 @@ function ENT:GetNPCState() return NPC_STATE_NONE end
 function ENT:AddEntityRelationship(target,disposition,priority) self:SetEntityRelationship(target,disposition,prioroty) end
 function ENT:AddRelationship(str)
 	local explode = string.Explode(" ",str)
-	
+
 	local class = explode[1]
 	if !class then return end
-	
+
 	local d = explode[2]=="D_LI" and D_LI or explode[2]=="D_HT" and D_HT or explode[2]=="D_ER" and D_ER or explode[2]=="D_FR" and D_FR
 	local priority = tonumber(explode[3])
 
@@ -313,7 +313,7 @@ local meta = FindMetaTable("Entity")
 
 if !meta.sb_anb_IsNPC then
 	meta.sb_anb_IsNPC = meta.IsNPC
-	
+
 	meta.IsNPC = function(s)
 		return s:sb_anb_IsNPC() or s.SBAdvancedNextBot and s.m_PassIsNPCCheck or false
 	end

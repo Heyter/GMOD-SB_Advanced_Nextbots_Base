@@ -189,7 +189,7 @@ ENT.TaskList = {
 						if self:GetRangeSquaredTo(self:GetEnemy()) > self.ClosePursuitDistance then
 							task = "movement_followenemy"
 						end
-					else
+					else -- movement_wait
 						task = "movement_randomwalk"
 					end
 				end

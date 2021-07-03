@@ -702,26 +702,26 @@ end
 --]]------------------------------------
 function ENT:ControlPath(lookatgoal)
 	if !self:PathIsValid() then return false end
-	
+
 	local path = self:GetPath()
 	local pos = self:GetPathPos()
 	local options = self.m_PathOptions
 
 	local range = self:GetRangeSquaredTo(pos)
-	
+
 	if range<options.tolerance*options.tolerance or range<self.PathGoalToleranceFinal then
 		path:Invalidate()
 		return true
 	end
-	
+
 	if path:GetAge()>options.recompute then
 		path:ResetAge()
-		
+
 		if !self:ComputePath(pos,options.generator) then
 			return false
 		end
 	end
-	
+
 	if self:MoveAlongPath(lookatgoal) then
 		return true
 	end
