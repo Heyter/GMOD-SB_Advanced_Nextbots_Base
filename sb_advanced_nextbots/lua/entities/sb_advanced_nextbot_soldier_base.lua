@@ -47,6 +47,8 @@ ENT.WeaponPickupDistance = math.pow(50, 2)
 ENT.MaxPursuitDistance = math.pow(2000, 2)
 -- Close pursuit distance. The distance required to start pursuit the target.
 ENT.ClosePursuitDistance = math.pow(300, 2)
+-- Enable patrol
+ENT.EnablePatrol = true
 
 local ENEMY_CLASSES
 
@@ -189,8 +191,8 @@ ENT.TaskList = {
 						if self:GetRangeSquaredTo(self:GetEnemy()) > self.ClosePursuitDistance then
 							task = "movement_followenemy"
 						end
-					else -- movement_wait
-						task = "movement_randomwalk"
+					else
+						task = self.EnablePatrol and "movement_randomwalk" or "movement_idle"
 					end
 				end
 			end

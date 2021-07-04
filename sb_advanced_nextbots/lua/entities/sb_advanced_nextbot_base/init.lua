@@ -254,6 +254,16 @@ function ENT:DissolveEntity(ent)
 	ent:AddFlags(FL_DISSOLVING)
 end
 
+--[[------------------------------------
+	Name: NEXTBOT:OnTraceAttack
+	Desc: https://wiki.facepunch.com/gmod/NEXTBOT:OnTraceAttack
+--]]------------------------------------
+function ENT:OnTraceAttack(dmg, dir, trace)
+	self.lastHitGroup = trace.HitGroup
+
+	self:RunTask("OnTraceAttack", dmg, dir, trace)
+end
+
 -- Handles Motion methods (Path, Speed, Activity)
 include("motion.lua")
 
@@ -307,6 +317,10 @@ function ENT:AddRelationship(str)
 	self:SetClassRelationship(class,d or D_NU,priority or 0)
 end
 function ENT:Disposition(ent) return self:GetRelationship(ent) end
+
+function ENT:LastHitGroup()
+	return self.lastHitGroup or 0
+end
 
 --HACK
 local meta = FindMetaTable("Entity")
