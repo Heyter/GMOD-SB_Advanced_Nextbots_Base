@@ -43,8 +43,6 @@ ENT.SpawnHealth = 70
 ENT.PathGoalToleranceFinal = math.pow(50, 2)
 ENT.WeaponPickupDistance = math.pow(50, 2)
 
-ENT.MeleeAttack = 0
-
 -- Maximum pursuit distance before the NPC loses sight of the target.
 ENT.MaxPursuitDistance = math.pow(2000, 2)
 -- Close pursuit distance. The distance required to start pursuit the target.
@@ -65,6 +63,9 @@ ENT.InformGroup = "Soldiers"
 ENT.GrenadeMinDistance = math.pow(512, 2)
 ENT.GrenadeMaxDistance = math.pow(1024, 2)
 ENT.CanThrowGrenade = true
+
+ENT.MeleeAttackRange = math.pow(72, 2)
+ENT.CanJump = true
 
 local ENEMY_CLASSES
 
@@ -102,7 +103,7 @@ ENT.TaskList = {
 				local ang = math.deg(math.acos(dot))
 
 				if ang<=25 then
-					if (self:GetRangeSquaredTo(self:GetEnemy():GetPos()) <= 72*72) then
+					if (self:GetRangeSquaredTo(self:GetEnemy():GetPos()) <= self.MeleeAttackRange) then
 						self:OnMeleeAttack(self:GetEnemy())
 					end
 
@@ -338,9 +339,7 @@ ENT.TaskList = {
 			self:TaskFail("movement_followenemy")
 		end,
 		ShouldWalk = function(self,data)
-			if data.Walk then
-				return true
-			end
+			return data.Walk
 		end,
 	},
 	["movement_randomwalk"] = {
@@ -502,6 +501,8 @@ function ENT:Initialize()
 	
 	self.m_InformRadius = self.InformRadius
 	self.m_InformGroup = self.InformGroup
+
+	self.emitSounds = {}
 end
 
 function ENT:SetFriendly(fr)
@@ -745,7 +746,15 @@ end
 function ENT:SetupDefaultCapabilities()
 	BaseClass.SetupDefaultCapabilities(self)
 
-	self:CapabilitiesAdd(CAP_MOVE_JUMP)
+	if !self.CanJump then
+		self.JumpHeight = 0
+		self.MaxJumpToPosHeight = 0
+		self.loco:SetJumpHeight(0)
+	else
+		self:CapabilitiesAdd(CAP_MOVE_JUMP)
+	end
+
+	self.MeleeAttack = 0
 end
 
 function ENT:OnKilled(dmg)
@@ -843,4 +852,15 @@ function ENT:OnMeleeAttack(entity)
 			end
 		end)
 	end
+end
+
+function ENT:EmitSoundTimer(id, delay, soundName)
+	if ((self.emitSounds[id] or 0) > CurTime()) then
+		return false
+	end
+
+	self.emitSounds[id] = CurTime() + delay
+	self:EmitSound(soundName)
+
+	return true
 end
