@@ -41,7 +41,7 @@ ENT.Models = {
 function ENT:Initialize()
 	BaseClass.Initialize(self)
 
-	self:SetModel(table.Random(self.Models))
+	self:SetModel(self.Models[ math.random( #self.Models ) ])
 	self:SetFriendly(true)
 
 	self:SetClassRelationship("sb_advanced_nextbot_soldier_friendly",D_LI)

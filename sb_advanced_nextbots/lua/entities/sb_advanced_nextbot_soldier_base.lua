@@ -43,12 +43,28 @@ ENT.SpawnHealth = 70
 ENT.PathGoalToleranceFinal = math.pow(50, 2)
 ENT.WeaponPickupDistance = math.pow(50, 2)
 
+ENT.MeleeAttack = 0
+
 -- Maximum pursuit distance before the NPC loses sight of the target.
 ENT.MaxPursuitDistance = math.pow(2000, 2)
 -- Close pursuit distance. The distance required to start pursuit the target.
 ENT.ClosePursuitDistance = math.pow(300, 2)
+ENT.ClosePursuitEnemyDistance = math.pow(0, 2)
 -- Enable patrol
 ENT.EnablePatrol = true
+
+-- Search distance of the object (player, weapon)
+ENT.SearchRangeObject = math.pow(3000, 2)
+
+-- Distance to detect an object
+ENT.SearchDistLimit = math.pow(500, 2)
+
+ENT.InformRadius = math.pow(5000, 2)
+ENT.InformGroup = "Soldiers"
+
+ENT.GrenadeMinDistance = math.pow(512, 2)
+ENT.GrenadeMaxDistance = math.pow(1024, 2)
+ENT.CanThrowGrenade = true
 
 local ENEMY_CLASSES
 
@@ -63,26 +79,20 @@ ENT.TaskList = {
 
 				local _,diff = WorldToLocal(vector_origin,dir:Angle(),vector_origin,self:GetDesiredEyeAngles())
 				local side = diff.y>0 and 1 or -1
-				local b1,b2 = self:GetCollisionBounds()
 
 				self:Approach(self:GetPos()+dir:Angle():Right()*side*10)
 			end
 		end,
 		BehaveUpdate = function(self,data,interval)
-			if !self:HasWeapon() then return end
-
 			local wep = self:GetActiveWeapon()
-			local enemy = self:GetEnemy()
 
-			if self.IsSeeEnemy and IsValid(enemy) then
-				local pos = self:GetShootPos()
-				local endpos = self.LastEnemyShootPos
-				local dir = endpos-pos
+			if self.IsSeeEnemy then
+				local dir = self.LastEnemyShootPos-self:GetShootPos()
 				dir:Normalize()
 
 				self:SetDesiredEyeAngles(dir:Angle())
 
-				if wep:Clip1()<=0 then
+				if IsValid(wep) and wep:Clip1()<=0 then
 					self:WeaponReload()
 				end
 
@@ -92,9 +102,9 @@ ENT.TaskList = {
 				local ang = math.deg(math.acos(dot))
 
 				if ang<=25 then
-					local filter = self:GetChildren()
-					filter[#filter+1] = self
-					filter[#filter+1] = enemy
+					if (self:GetRangeSquaredTo(self:GetEnemy():GetPos()) <= 72*72) then
+						self:OnMeleeAttack(self:GetEnemy())
+					end
 
 					if self.LastShootBlocker then
 						if self:IsTaskActive("movement_wait") and CurTime()-data.PassBlockerTime>0.5 then
@@ -102,11 +112,13 @@ ENT.TaskList = {
 						end
 					else
 						data.PassBlockerTime = CurTime()
-					
-						self:WeaponPrimaryAttack()
+
+						if (!self:ThrowGrenade() and self:HasWeapon()) then
+							self:WeaponPrimaryAttack()
+						end
 					end
 				end
-			elseif wep:Clip1()<wep:GetMaxClip1()/2 then
+			elseif IsValid(wep) and wep:Clip1()<wep:GetMaxClip1()/2 then
 				self:WeaponReload()
 			end
 		end,
@@ -173,7 +185,7 @@ ENT.TaskList = {
 		OnStart = function(self,data)
 			self:TaskComplete("movement_handler")
 
-			local task,data = "movement_wait"
+			local task,data = "movement_wait", {}
 			local findwep = !self:HasWeapon() and self:FindWeapon()
 
 			if self.CustomPosition then
@@ -188,11 +200,15 @@ ENT.TaskList = {
 					end
 				else
 					if IsValid(self:GetEnemy()) then
-						if self:GetRangeSquaredTo(self:GetEnemy()) > self.ClosePursuitDistance then
+						if (self.ClosePursuitEnemyDistance > 0) then
+							if self:GetRangeSquaredTo(self:GetEnemy()) > self.ClosePursuitEnemyDistance then
+								task = "movement_followenemy"
+							end
+						else
 							task = "movement_followenemy"
 						end
 					else
-						task = self.EnablePatrol and "movement_randomwalk" or "movement_idle"
+						task = self.EnablePatrol and "movement_randomwalk" or "movement_wait"
 					end
 				end
 			end
@@ -424,9 +440,6 @@ ENT.TaskList = {
 	},
 }
 
-ENT.InformRadius = math.pow(5000, 2)
-ENT.InformGroup = "Soldiers"
-
 --[[------------------------------------
 	CONFIG END
 --]]------------------------------------
@@ -524,7 +537,7 @@ function ENT:SetupEntityRelationship(ent)
 end
 
 function ENT:BehaviourThink()
-	if self:PathIsValid() and !self:IsControlledByPlayer() and !self:DisableBehaviour() then
+	if self:PathIsValid() and !self:IsControlledByPlayer() and !self:DisableBehaviour() and self:HasWeapon() then
 		local filter = self:GetChildren()
 		filter[#filter+1] = self
 		
@@ -557,8 +570,8 @@ function ENT:BehaviourThink()
 	//self.OnContactAllowed = true
 end
 
-/*function ENT:OnContact(ent)
-	if self==ent or !self.OnContactAllowed then return end
+--[[ function ENT:OnContact(ent)
+	if self == ent or !self.OnContactAllowed then return end
 
 	local vel = ent:GetVelocity()
 
@@ -568,13 +581,7 @@ end
 		self.loco:Approach(pos+vel:GetNormalized()+(pos-ent:GetPos()):GetNormalized(),1)
 		self.OnContactAllowed = false
 	end
-end*/
-
--- Search distance of the object (player, weapon)
-ENT.SearchRangeObject = math.pow(3000, 2)
-
--- Distance to detect an object
-ENT.SearchDistLimit = math.pow(500, 2)
+end ]]
 
 function ENT:FindWeapon()
 	local wep,range,weight
@@ -661,27 +668,27 @@ function ENT:GetRandomWalkPosition()
 	if self:UsingNodeGraph() then
 		local cur = SBAdvancedNextbotNodeGraph.GetNearestNode(pos)
 		if !cur then return end
-		
+
 		local opened = {[cur:GetID()] = true}
 		local closed = {}
 		local costs = {[cur:GetID()] = cur:GetOrigin():DistToSqr(pos)}
-		
+
 		while !table.IsEmpty(opened) do
 			local _,nodeid = table.Random(opened)
 			opened[nodeid] = nil
 			closed[nodeid] = true
-			
+
 			local node = SBAdvancedNextbotNodeGraph.GetNodeByID(nodeid)
-			
+
 			if costs[nodeid]>=destlen then
 				return node:GetOrigin()
 			end
-			
+
 			for k,v in ipairs(node:GetAdjacentNodes()) do
 				if !closed[v:GetID()] then
 					local cost = costs[nodeid]+v:GetOrigin():DistToSqr(node:GetOrigin())
 					costs[v:GetID()] = cost
-					
+
 					opened[v:GetID()] = true
 				end
 			end
@@ -689,27 +696,27 @@ function ENT:GetRandomWalkPosition()
 	else
 		local cur = navmesh.GetNearestNavArea(pos)
 		if !IsValid(cur) then return end
-		
+
 		local opened = {[cur:GetID()] = true}
 		local closed = {}
 		local costs = {[cur:GetID()] = cur:GetCenter():DistToSqr(pos)}
-		
+
 		while !table.IsEmpty(opened) do
 			local _,areaid = table.Random(opened)
 			opened[areaid] = nil
 			closed[areaid] = true
-			
+
 			local area = navmesh.GetNavAreaByID(areaid)
-			
+
 			if costs[areaid]>=destlen then
 				return area:GetRandomPoint()
 			end
-			
+
 			for k,v in ipairs(area:GetAdjacentAreas()) do
 				if !closed[v:GetID()] then
 					local cost = costs[areaid]+v:GetCenter():DistToSqr(area:GetCenter())
 					costs[v:GetID()] = cost
-					
+
 					opened[v:GetID()] = true
 				end
 			end
@@ -739,4 +746,101 @@ function ENT:SetupDefaultCapabilities()
 	BaseClass.SetupDefaultCapabilities(self)
 
 	self:CapabilitiesAdd(CAP_MOVE_JUMP)
+end
+
+function ENT:OnKilled(dmg)
+	if self:HasWeapon() then
+		local wep = self:GetActiveLuaWeapon()
+
+		if !dmg:IsDamageType(DMG_DISSOLVE) then
+			if self:CanDropWeaponOnDie(wep) and wep:ShouldDropOnDie() then
+				self:DropWeapon(nil,true)
+			else
+				wep:Remove()
+			end
+		else
+			local wep = self:DropWeapon(nil,true)
+			self:DissolveEntity(wep)
+		end
+	end
+
+	local len = self:DoPosture("death_0" .. math.random(1, 4), true)
+
+	timer.Simple(len, function()
+		if (IsValid(self)) then
+			self:BecomeRagdoll(dmg)
+		end
+	end)
+
+	self:RunTask("OnKilled",dmg)
+	hook.Run("OnNPCKilled",self,dmg:GetAttacker(),dmg:GetInflictor())
+end
+
+function ENT:ThrowGrenade()
+	if (!self:CanThrowGrenade()) then return false end
+
+	local dist = self:GetRangeSquaredTo(self.LastEnemyShootPos)
+	if dist > self.GrenadeMaxDistance or dist < self.GrenadeMinDistance then return false end
+
+	self.ThrowedGrenadeDelay = CurTime() + math.random(5, 30)
+	self:DoGesture(ACT_GMOD_GESTURE_ITEM_THROW, 2)
+	self.m_WeaponData.Primary.NextShootTime = self.m_WeaponData.Primary.NextShootTime + 1
+
+	timer.Simple(0.3, function()
+		if (IsValid(self)) then
+			self:StopGesture()
+
+			local nade = ents.Create("npc_grenade_frag")
+			nade:SetPos(self:GetPos() + Vector(0, 0, 55) - (self:GetRight() * 5))
+			nade:SetAngles(self:GetDesiredEyeAngles())
+			nade:SetOwner(self)
+			nade:Spawn()
+			nade:Activate()
+			nade:Fire("SetTimer", 2)
+
+			local phys = nade:GetPhysicsObject()
+
+			if (IsValid(phys)) then
+				phys:Wake()
+				phys:SetVelocity((self.LastEnemyShootPos + self:OBBCenter() - self:GetPos()) )
+			end
+		end
+	end)
+
+	return true
+end
+
+function ENT:CanThrowGrenade()
+	return self.CanThrowGrenade and (self.ThrowedGrenadeDelay or 0) < CurTime()
+end
+
+function ENT:OnMeleeAttack(entity)
+	if (self.MeleeAttack and self.MeleeAttack < CurTime()) then
+		self.MeleeAttack = CurTime() + 5
+
+		entity = entity or self.LastShootBlocker
+		if (!IsValid(entity)) then return end
+
+		local len = self:SequenceDuration(ACT_HL2MP_GESTURE_RANGE_ATTACK_MELEE)
+		self:DoGesture(ACT_HL2MP_GESTURE_RANGE_ATTACK_MELEE)
+
+		timer.Simple(len, function()
+			if (IsValid(self)) then
+				self.MeleeAttack = CurTime() + 1
+
+				local dmg = DamageInfo()
+				dmg:SetDamage(math.random(7, 15))
+				dmg:SetAttacker(self)
+				dmg:SetInflictor(self)
+				dmg:SetDamageType(DMG_CLUB)
+				dmg:SetDamagePosition(entity:GetPos())
+
+				entity:TakeDamageInfo(dmg)
+
+				if entity:IsPlayer() then
+					entity:ViewPunch(Angle(20, math.random(-10, 10), 0))
+				end
+			end
+		end)
+	end
 end

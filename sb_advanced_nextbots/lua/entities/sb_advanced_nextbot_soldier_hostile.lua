@@ -41,7 +41,7 @@ ENT.Models = {
 function ENT:Initialize()
 	BaseClass.Initialize(self)
 
-	self:SetModel(table.Random(self.Models))
+	self:SetModel(self.Models[ math.random( #self.Models ) ])
 	self:SetFriendly(false)
 
 	self:SetClassRelationship("sb_advanced_nextbot_soldier_friendly",D_HT)
@@ -57,33 +57,5 @@ function ENT:Initialize()
 			self.PlayerDisposition==3 and D_LI or
 			D_HT
 		)
-	end
-end
-
-if (SERVER) then
-	function ENT:OnKilled(dmg)
-		if self:HasWeapon() then
-			local wep = self:GetActiveLuaWeapon()
-
-			if !dmg:IsDamageType(DMG_DISSOLVE) then
-				if self:CanDropWeaponOnDie(wep) and wep:ShouldDropOnDie() then
-					self:DropWeapon(nil,true)
-				else
-					wep:Remove()
-				end
-			else
-				local wep = self:DropWeapon(nil,true)
-				self:DissolveEntity(wep)
-			end
-		end
-
-		local s = self:DoPosture("death_0" .. math.random(1, 4), true)
-
-		timer.Simple(s, function()
-			self:BecomeRagdoll(dmg)
-
-			self:RunTask("OnKilled",dmg)
-			hook.Run("OnNPCKilled",self,dmg:GetAttacker(),dmg:GetInflictor())
-		end)
 	end
 end

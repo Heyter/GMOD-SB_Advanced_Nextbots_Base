@@ -28,29 +28,29 @@ end
 function ENT:RunTask(event,...)
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
 	if !m_ActiveTasksNum then return end
-	
+
 	local m_TaskList = self.m_TaskList
 	local PassedTasks = {}
-	
+
 	local k = 1
 	while true do
 		local v = m_ActiveTasksNum[k]
 		if !v then break end
-		
+
 		local task,data = v[1],v[2]
-		
+
 		if PassedTasks[task] then
 			k = k+1
-		
+
 			continue
 		end
 		PassedTasks[task] = true
-		
+
 		local callback = m_TaskList[task][event]
-		
+
 		if callback then
 			local args = {callback(self,data,...)}
-			
+
 			if args[1]!=nil then
 				if args[2]==nil then
 					return args[1]
@@ -58,7 +58,7 @@ function ENT:RunTask(event,...)
 					return unpack(args)
 				end
 			end
-			
+
 			while k>0 do
 				local cv = m_ActiveTasksNum[k]
 				if cv==v then break end
@@ -66,7 +66,7 @@ function ENT:RunTask(event,...)
 				k = k-1
 			end
 		end
-		
+
 		k = k+1
 	end
 end
@@ -83,12 +83,12 @@ function ENT:RunCurrentTask(task,event,...)
 	if !self:IsTaskActive(task) then return end
 
 	local k,v = task,self.m_ActiveTasks[task]
-	
+
 	local dt = self.m_TaskList[k]
 	if !dt or !dt[event] then return end
-	
+
 	local args = {dt[event](self,v,...)}
-	
+
 	if args[1]!=nil then
 		if args[2]==nil then
 			return args[1]
@@ -107,17 +107,17 @@ end
 --]]------------------------------------
 function ENT:StartTask(task,data)
 	if self:IsTaskActive(task) then return end
-	
+
 	data = data or {}
 	self.m_ActiveTasks[task] = data
-	
+
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
 	if !m_ActiveTasksNum then
 		m_ActiveTasksNum = {}
 		self.m_ActiveTasksNum = m_ActiveTasksNum
 	end
 	m_ActiveTasksNum[#m_ActiveTasksNum+1] = {task,data}
-	
+
 	self:RunCurrentTask(task,"OnStart")
 end
 
@@ -129,12 +129,12 @@ end
 --]]------------------------------------
 function ENT:TaskComplete(task)
 	if !self:IsTaskActive(task) then return end
-	
+
 	self:RunCurrentTask(task,"OnComplete")
 	self:RunCurrentTask(task,"OnDelete")
-	
+
 	self.m_ActiveTasks[task] = nil
-	
+
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
 	for i=1,#m_ActiveTasksNum do
 		if m_ActiveTasksNum[i][1]==task then
@@ -152,12 +152,12 @@ end
 --]]------------------------------------
 function ENT:TaskFail(task)
 	if !self:IsTaskActive(task) then return end
-	
+
 	self:RunCurrentTask(task,"OnFail")
 	self:RunCurrentTask(task,"OnDelete")
-	
+
 	self.m_ActiveTasks[task] = nil
-	
+
 	local m_ActiveTasksNum = self.m_ActiveTasksNum
 	for i=1,#m_ActiveTasksNum do
 		if m_ActiveTasksNum[i][1]==task then
